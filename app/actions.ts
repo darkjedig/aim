@@ -40,16 +40,27 @@ export const signInAction = async (formData: FormData) => {
   const password = formData.get("password") as string;
   const supabase = createClient();
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (error) {
-    return encodedRedirect("error", "/sign-in", error.message);
+  if (!supabase.auth) {
+    console.error('Supabase client created without auth object');
+    return encodedRedirect("error", "/sign-in", "Authentication service unavailable");
   }
 
-  return redirect("/protected");
+  try {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error('Sign-in error:', error.message);
+      return encodedRedirect("error", "/sign-in", error.message);
+    }
+
+    return redirect("/protected");
+  } catch (error) {
+    console.error('Unexpected error during sign-in:', error);
+    return encodedRedirect("error", "/sign-in", "An unexpected error occurred");
+  }
 };
 
 export const forgotPasswordAction = async (formData: FormData) => {
