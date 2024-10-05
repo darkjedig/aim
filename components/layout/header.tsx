@@ -94,7 +94,9 @@ export function Header() {
                   <DropdownMenuItem>
                     <Link href="/tools/seo/blog-writer">Blog Writer</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>Outrank</DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/tools/seo/outrank">Outrank</Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem>Internal Link Optimizer</DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
