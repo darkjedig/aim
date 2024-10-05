@@ -88,7 +88,9 @@ export function Header() {
                   <DropdownMenuItem>
                     <Link href="/tools/seo/topic-finder">Topic Finder</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>Strategy Builder</DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/tools/seo/strategy-builder">Strategy Builder</Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem>Blog Writer</DropdownMenuItem>
                   <DropdownMenuItem>Outrank</DropdownMenuItem>
                   <DropdownMenuItem>Internal Link Optimizer</DropdownMenuItem>
@@ -147,7 +149,7 @@ export function Header() {
                   {user ? (
                     <>
                       <DropdownMenuItem className="text-gray-200 hover:bg-gray-700 hover:text-white">
-                        <Link href="/account" className="flex items-center w-full">
+                        <Link href="/dashboard" className="flex items-center w-full">
                           <Settings className="mr-2 h-4 w-4" />
                           <span>Account Settings</span>
                         </Link>
