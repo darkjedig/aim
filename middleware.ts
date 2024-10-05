@@ -1,6 +1,5 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -9,32 +8,80 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  try {
-    const supabase = createMiddlewareClient({ req: request, res: response })
-    
-    // This will refresh the session if expired
-    const { data: { session }, error } = await supabase.auth.getSession()
-
-    // Protected routes
-    if (request.nextUrl.pathname.startsWith("/protected") && !session) {
-      return NextResponse.redirect(new URL("/sign-in", request.url))
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value
+        },
+        set(name: string, value: string, options: any) {
+          request.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+        },
+        remove(name: string, options: any) {
+          request.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          response.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
+        },
+      },
     }
+  )
 
-    // Redirect logged-in users from public pages
-    if (["/sign-in", "/sign-up", "/"].includes(request.nextUrl.pathname) && session) {
-      return NextResponse.redirect(new URL("/protected", request.url))
-    }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-    return response
-
-  } catch (error) {
-    console.error('Error in middleware:', error)
-    return response
+  // Redirect authenticated users to dashboard instead of /protected
+  if (request.nextUrl.pathname === '/protected' && user) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    return NextResponse.redirect(url)
   }
+
+  // Protect dashboard routes
+  if (request.nextUrl.pathname.startsWith("/dashboard") && !user) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/(auth-pages)/sign-in'
+    return NextResponse.redirect(url)
+  }
+
+  // Redirect logged-in users from public pages to dashboard
+  if (["/sign-in", "/sign-up"].includes(request.nextUrl.pathname) && user) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    return NextResponse.redirect(url)
+  }
+
+  return response
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }
