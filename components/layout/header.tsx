@@ -71,7 +71,7 @@ export function Header() {
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <Link href="/" className="flex items-center space-x-2">
           <Cpu className="h-8 w-8 text-purple-500" />
-          <span className="font-bold text-xl bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">AIMarketer</span>
+          <span className="font-bold text-xl bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">AIM</span>
         </Link>
         <nav className="hidden md:flex space-x-4">
           <Link href="/" className="text-sm font-medium text-gray-200 hover:text-purple-400 transition-colors">
@@ -97,31 +97,50 @@ export function Header() {
                   <DropdownMenuItem>
                     <Link href="/tools/seo/outrank">Outrank</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>Internal Link Optimizer</DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/tools/seo/internal-link-optimizer">Internal Link Optimizer</Link>
+                  </DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>PPC Tools</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
-                  <DropdownMenuItem>Keyword Finder</DropdownMenuItem>
-                  <DropdownMenuItem>Headline Generator</DropdownMenuItem>
-                  <DropdownMenuItem>Description Writer</DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/tools/ppc/keyword-finder">Keyword Finder</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/tools/ppc/headline-generator">Headline Generator</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/tools/ppc/description-writer">Description Writer</Link>
+                  </DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>Social Tools</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
-                  <DropdownMenuItem>Topic Finder</DropdownMenuItem>
-                  <DropdownMenuItem>Post Builder</DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/tools/social/topic-finder">Topic Finder</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/tools/social/post-builder">Post Builder</Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem>Post Scheduler</DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>Creative Tools</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
-                  <DropdownMenuItem>Image Generator</DropdownMenuItem>
-                  <DropdownMenuItem>BG Remover</DropdownMenuItem>
-                  <DropdownMenuItem>Image Upscaler</DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/tools/creative/image-generator">Image Generator</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/tools/creative/background-remover">Background Remover</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/tools/creative/image-upscaler">Image Upscaler</Link>
+                  </DropdownMenuItem>
+                  {/* Add more creative tools here */}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             </DropdownMenuContent>
