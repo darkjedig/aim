@@ -28,14 +28,14 @@ export function AnimatedBackgroundImageGenerator() {
       type: 'icon' | 'frame';
     }> = []
 
-    const createImage = () => {
+    function createImage(): { x: number; y: number; size: number; vx: number; vy: number; type: "icon" | "frame" } {
       return {
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
+        x: Math.random() * canvas!.width,
+        y: Math.random() * canvas!.height,
         size: Math.random() * 20 + 10,
         vx: (Math.random() - 0.5) * 2,
         vy: (Math.random() - 0.5) * 2,
-        type: Math.random() > 0.5 ? 'icon' : 'frame'
+        type: Math.random() < 0.5 ? "icon" : "frame" as const,
       }
     }
 
