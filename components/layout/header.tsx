@@ -14,7 +14,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Cpu, ChevronDown, User as UserIcon, Settings, LogOut } from "lucide-react";
+import { Cpu, ChevronDown, User as UserIcon, Settings, LogOut, Shield } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 
 export function Header() {
@@ -180,6 +180,12 @@ export function Header() {
                       <DropdownMenuItem className="text-gray-200 hover:bg-gray-700 hover:text-white" onSelect={handleLogout}>
                         <LogOut className="mr-2 h-4 w-4" />
                         <span>Log Out</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem>
+                        <Link href="/admin" className="flex items-center">
+                          <Shield className="mr-2 h-4 w-4" />
+                          Admin Dashboard
+                        </Link>
                       </DropdownMenuItem>
                     </>
                   ) : (

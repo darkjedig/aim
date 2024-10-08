@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import "@/app/globals.css";
+import { ToastProvider } from "@/components/ui/toast";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
