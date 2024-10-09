@@ -3,6 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 interface ToolConfigurationProps {
   onAddTool: () => void;
@@ -39,7 +40,13 @@ export function ToolConfiguration({ onAddTool }: ToolConfigurationProps) {
           </TableHeader>
           <TableBody>
             {tools.map((tool) => (
-              <TableRow key={tool.id}>
+              <TableRow 
+                key={tool.id}
+                className={cn(
+                  "transition-colors hover:bg-purple-500/10",
+                  "data-[state=selected]:bg-purple-500/20"
+                )}
+              >
                 <TableCell className="font-medium text-gray-300">{tool.name}</TableCell>
                 <TableCell className="text-gray-300">{tool.creditCost}</TableCell>
                 <TableCell className="text-gray-300">{tool.aiModel}</TableCell>

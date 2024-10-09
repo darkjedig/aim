@@ -73,7 +73,7 @@ export function Overview() {
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="name" stroke="#9CA3AF" />
               <YAxis stroke="#9CA3AF" />
-              <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none' }} />
+              <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', color: 'white' }} />
               <Line type="monotone" dataKey="usage" stroke="#8B5CF6" strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
