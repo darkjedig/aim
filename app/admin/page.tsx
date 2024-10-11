@@ -100,7 +100,7 @@ export default function OwnerAdminDashboard() {
             className="w-full justify-start mb-2 hover:bg-purple-500 hover:text-white transition-colors"
             onClick={() => setActiveTab("subscriptions")}
           >
-            <CreditCard className="mr-2 h-4 w-4" /> Subscriptions & Credits
+            <CreditCard className="mr-2 h-4 w-4" /> Subscriptions/Credit
           </Button>
           <Button
             variant="ghost"
@@ -154,7 +154,6 @@ export default function OwnerAdminDashboard() {
             <TabsContent value="subscriptions">
               <SubscriptionsAndCredits 
                 onAddPlan={() => setActiveForm("add-plan")} 
-                onAddPackage={() => setActiveForm("add-package")} 
               />
             </TabsContent>
             <TabsContent value="tools">

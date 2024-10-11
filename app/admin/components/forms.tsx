@@ -7,6 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
+import { createClient } from '@/utils/supabase/client'
+
+const supabase = createClient()
 
 interface FormProps {
   onClose: () => void;
@@ -72,17 +75,41 @@ export function AddUserForm({ onClose }: FormProps) {
 export function AddPlanForm({ onClose }: FormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
+  const [plan, setPlan] = useState({
+    name: '',
+    credits: 0,
+    price: 0
+  })
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setPlan(prev => ({ ...prev, [name]: name === 'name' ? value : Number(value) }))
+  }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsLoading(true)
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    const { data, error } = await supabase
+      .from('subscription_plans')
+      .insert([plan])
+      .select()
+
     setIsLoading(false)
-    toast({
-      title: "Success",
-      description: "New subscription plan has been successfully added.",
-    })
-    onClose()
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add new subscription plan.",
+      })
+      console.error('Error adding plan:', error)
+    } else {
+      toast({
+        title: "Success",
+        description: "New subscription plan has been successfully added.",
+      })
+      onClose()
+    }
   }
 
   return (
@@ -95,25 +122,15 @@ export function AddPlanForm({ onClose }: FormProps) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name" className="text-gray-300">Plan Name</Label>
-            <Input id="name" placeholder="Pro Plan" required className="bg-gray-700 text-gray-300 border-gray-600" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="price" className="text-gray-300">Monthly Price ($)</Label>
-            <Input id="price" type="number" step="0.01" placeholder="99.99" required className="bg-gray-700 text-gray-300 border-gray-600" />
+            <Input id="name" name="name" value={plan.name} onChange={handleChange} required className="bg-gray-700 text-gray-300 border-gray-600" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="credits" className="text-gray-300">Monthly Credits</Label>
-            <Input id="credits" type="number" placeholder="5000" required className="bg-gray-700 text-gray-300 border-gray-600" />
+            <Input id="credits" name="credits" type="number" value={plan.credits} onChange={handleChange} required className="bg-gray-700 text-gray-300 border-gray-600" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="features" className="text-gray-300">Features (one per line)</Label>
-            <Textarea 
-              id="features" 
-              placeholder="Unlimited AI content generation&#10;24/7 customer support&#10;Advanced analytics" 
-              rows={5}
-              required 
-              className="bg-gray-700 text-gray-300 border-gray-600"
-            />
+            <Label htmlFor="price" className="text-gray-300">Monthly Price (£)</Label>
+            <Input id="price" name="price" type="number" step="0.01" value={plan.price} onChange={handleChange} required className="bg-gray-700 text-gray-300 border-gray-600" />
           </div>
           <Button type="submit" className="w-full bg-purple-500 hover:bg-purple-600 text-white" disabled={isLoading}>
             {isLoading ? "Adding Plan..." : "Add Subscription Plan"}
@@ -176,61 +193,77 @@ export function AddPackageForm({ onClose }: FormProps) {
 export function AddToolForm({ onClose }: FormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
+  const [tool, setTool] = useState({
+    name: '',
+    credit_cost: 0,
+    ai_model: '',
+    status: 'Active'
+  })
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setTool(prev => ({ ...prev, [name]: name === 'credit_cost' ? Number(value) : value }))
+  }
+
+  const handleModelChange = (value: string) => {
+    setTool(prev => ({ ...prev, ai_model: value }))
+  }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsLoading(true)
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    const { data, error } = await supabase
+      .from('tools')
+      .insert([tool])
+      .select()
+
     setIsLoading(false)
-    toast({
-      title: "Success",
-      description: "New AI tool has been successfully added.",
-    })
-    onClose()
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add new tool.",
+      })
+      console.error('Error adding tool:', error)
+    } else {
+      toast({
+        title: "Success",
+        description: "New tool has been successfully added.",
+      })
+      onClose()
+    }
   }
 
   return (
     <Card className="w-full max-w-2xl mx-auto bg-gray-800 border-0 shadow-lg shadow-purple-500/10">
       <CardHeader>
-        <CardTitle className="text-2xl text-gray-100">Add New AI Tool</CardTitle>
+        <CardTitle className="text-2xl text-gray-100">Add New Tool</CardTitle>
         <CardDescription className="text-gray-400">Create a new AI tool for users to utilize.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name" className="text-gray-300">Tool Name</Label>
-            <Input id="name" placeholder="AI Content Generator" required className="bg-gray-700 text-gray-300 border-gray-600" />
+            <Input id="name" name="name" value={tool.name} onChange={handleChange} required className="bg-gray-700 text-gray-300 border-gray-600" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="description" className="text-gray-300">Description</Label>
-            <Textarea 
-              id="description" 
-              placeholder="Generate high-quality content using advanced AI technology." 
-              rows={3}
-              required 
-              className="bg-gray-700 text-gray-300 border-gray-600"
-            />
+            <Label htmlFor="credit_cost" className="text-gray-300">Credit Cost</Label>
+            <Input id="credit_cost" name="credit_cost" type="number" value={tool.credit_cost} onChange={handleChange} required className="bg-gray-700 text-gray-300 border-gray-600" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="aiModel" className="text-gray-300">AI Model</Label>
-            <Select required>
+            <Label htmlFor="ai_model" className="text-gray-300">AI Model</Label>
+            <Select onValueChange={handleModelChange} required>
               <SelectTrigger className="bg-gray-700 text-gray-300 border-gray-600">
                 <SelectValue placeholder="Select an AI model" />
               </SelectTrigger>
               <SelectContent className="bg-gray-700 text-gray-300 border-gray-600">
-                <SelectItem value="gpt3">GPT-3</SelectItem>
-                <SelectItem value="gpt4">GPT-4</SelectItem>
-                <SelectItem value="claude">Claude</SelectItem>
+                <SelectItem value="OpenAI GPT-4">OpenAI GPT-4</SelectItem>
+                <SelectItem value="Anthropic Claude">Anthropic Claude</SelectItem>
+                <SelectItem value="DALL-E 2">DALL-E 2</SelectItem>
+                <SelectItem value="Custom ML Model">Custom ML Model</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="creditCost" className="text-gray-300">Credit Cost per Use</Label>
-            <Input id="creditCost" type="number" placeholder="10" required className="bg-gray-700 text-gray-300 border-gray-600" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="maxTokens" className="text-gray-300">Max Tokens</Label>
-            <Input id="maxTokens" type="number" placeholder="2000" required className="bg-gray-700 text-gray-300 border-gray-600" />
           </div>
           <Button type="submit" className="w-full bg-purple-500 hover:bg-purple-600 text-white" disabled={isLoading}>
             {isLoading ? "Adding Tool..." : "Add AI Tool"}

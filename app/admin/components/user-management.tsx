@@ -440,14 +440,14 @@ export function UserManagement() {
         ) : (
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="text-gray-300">Name</TableHead>
-                <TableHead className="text-gray-300">Email</TableHead>
-                <TableHead className="text-gray-300">Status</TableHead>
-                <TableHead className="text-gray-300">Credits</TableHead>
-                <TableHead className="text-gray-300">Last Login</TableHead>
-                <TableHead className="text-gray-300">Account Level</TableHead>
-                <TableHead className="text-gray-300">Actions</TableHead>
+              <TableRow className="bg-gray-700 hover:bg-purple-500/20 transition-colors">
+                <TableHead className="text-gray-100">Name</TableHead>
+                <TableHead className="text-gray-100">Email</TableHead>
+                <TableHead className="text-gray-100">Status</TableHead>
+                <TableHead className="text-gray-100">Credits</TableHead>
+                <TableHead className="text-gray-100">Last Login</TableHead>
+                <TableHead className="text-gray-100">Account Level</TableHead>
+                <TableHead className="text-gray-100">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
