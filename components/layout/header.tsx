@@ -13,8 +13,10 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Cpu, ChevronDown, User as UserIcon, Settings, LogOut, Shield } from "lucide-react";
+import { Cpu, ChevronDown, User as UserIcon, Settings, LogOut, Shield, Bell, Trash2 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 
 export function Header() {
@@ -23,6 +25,9 @@ export function Header() {
   const supabase = createClient();
   const router = useRouter();
   const pathname = usePathname();
+
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
     const getUser = async () => {
@@ -51,6 +56,68 @@ export function Header() {
 
     return () => subscription.unsubscribe();
   }, [pathname]); // Add pathname as a dependency
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (error) {
+        console.error('Error fetching notifications:', error);
+      } else {
+        setNotifications(data || []);
+        setUnreadCount(data?.filter(n => !n.is_read).length || 0);
+      }
+    };
+
+    fetchNotifications();
+
+    // Set up real-time listener for new notifications
+    const notificationsSubscription = supabase
+      .channel('public:notifications')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, payload => {
+        setNotifications(prev => [payload.new, ...prev].slice(0, 5));
+        setUnreadCount(prev => prev + 1);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(notificationsSubscription);
+    };
+  }, []);
+
+  const markAsRead = async (id: number) => {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error marking notification as read:', error);
+    } else {
+      setUnreadCount(prev => Math.max(prev - 1, 0));
+      setNotifications(prev => 
+        prev.map(n => n.id === id ? { ...n, is_read: true } : n)
+      );
+    }
+  };
+
+  const deleteNotification = async (id: number) => {
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting notification:', error);
+    } else {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+      setUnreadCount(prev => Math.max(prev - 1, 0));
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -150,6 +217,41 @@ export function Header() {
           </Link>
         </nav>
         <div className="flex items-center space-x-6">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="relative p-2">
+                <Bell className="h-5 w-5 text-purple-500" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">
+                    {unreadCount}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-80 bg-gray-800 border-gray-700">
+              <DropdownMenuLabel className="text-gray-300">Notifications</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {notifications.map((notification) => (
+                <DropdownMenuItem 
+                  key={notification.id}
+                  className="text-gray-300 hover:bg-gray-700 flex justify-between items-start"
+                >
+                  <div onClick={() => markAsRead(notification.id)} className="cursor-pointer flex-grow">
+                    <div className="font-semibold">{notification.title}</div>
+                    <div className="text-sm text-gray-400">{notification.message}</div>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="hover:bg-red-500 hover:text-white ml-2"
+                    onClick={() => deleteNotification(notification.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           {loading ? (
             <span>Loading...</span>
           ) : (
