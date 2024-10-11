@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'; // Adjust the import path as necessary
+import { useRouter } from 'next/navigation'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -242,33 +243,79 @@ export function UserManagement() {
   const [addingUser, setAddingUser] = useState(false)
   const [banningUser, setBanningUser] = useState<User | null>(null)
   const [deletingUser, setDeletingUser] = useState<User | null>(null)
-  const [addUserError, setAddUserError] = useState<string | null>(null);
+  const [addUserError, setAddUserError] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
+    const checkAdminStatus = async () => {
+      setIsLoading(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data, error } = await supabase
+          .from('users')
+          .select('account_level')
+          .eq('user_id', user.id)
+          .single()
+
+        console.log('Admin check result:', data, error)
+
+        if (error) {
+          console.error('Error checking admin status:', error)
+          router.push('/')
+        } else if (data?.account_level === 'admin') {
+          setIsAdmin(true)
+          fetchUsers()
+        } else {
+          console.log('User is not an admin')
+          router.push('/')
+        }
+      } else {
+        console.log('No user found')
+        router.push('/login')
+      }
+      setIsLoading(false)
+    }
+
     const fetchUsers = async () => {
       const { data, error } = await supabase
         .from('users')
         .select('*')
-        .order('id', { ascending: false });
+        .order('id', { ascending: false })
       if (error) {
-        console.error('Error fetching users:', error);
+        console.error('Error fetching users:', error)
       } else {
-        setUsers(data || []);
+        console.log('Fetched users:', data)
+        setUsers(data || [])
       }
-    };
-    fetchUsers();
-  }, []);
+    }
+
+    checkAdminStatus()
+  }, [router])
+
+  if (isLoading) {
+    return <div>Loading...</div> // Or a more sophisticated loading indicator
+  }
+
+  if (!isAdmin) {
+    return null // Or a message indicating lack of access
+  }
 
   const handleSaveUser = async (editedUser: User) => {
+    // Create a new object without the 'id' and 'user_id' fields
+    const { id, user_id, ...updateData } = editedUser;
+
     const { data, error } = await supabase
       .from('users')
-      .update(editedUser)
-      .eq('id', editedUser.id)
+      .update(updateData)
+      .eq('id', id)
       .select();
+
     if (error) {
       console.error('Error updating user:', error);
     } else if (data) {
-      setUsers((users) => users.map((user) => (user.id === editedUser.id ? data[0] : user)));
+      setUsers((users) => users.map((user) => (user.id === id ? data[0] : user)));
       setEditingUser(null);
     }
   };
@@ -416,7 +463,9 @@ export function UserManagement() {
                   <TableCell className="text-gray-300">{user.email}</TableCell>
                   <TableCell className="text-gray-300">{user.status}</TableCell>
                   <TableCell className="text-gray-300">{user.credits}</TableCell>
-                  <TableCell className="text-gray-300">{user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</TableCell>
+                  <TableCell className="text-gray-300">
+                    {user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}
+                  </TableCell>
                   <TableCell className="text-gray-300">{user.account_level}</TableCell>
                   <TableCell className="text-gray-300">
                     <Button variant="ghost" size="sm" className="hover:bg-purple-500 hover:text-white mr-2" onClick={() => handleEditUser(user)}>

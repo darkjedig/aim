@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/utils/supabase/client'
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Cpu, BarChart, Users, CreditCard, Wrench, Bell, Settings, ArrowLeft } from "lucide-react"
@@ -13,19 +14,42 @@ import { Notifications } from './components/notifications'
 import { SystemSettings } from './components/system-settings'
 import { AddUserForm, AddPlanForm, AddPackageForm, AddToolForm } from './components/forms'
 
+const supabase = createClient()
+
 const useRequireAuth = () => {
   const router = useRouter()
-  const isAuthenticated = true // Replace with actual auth check
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
 
-  if (!isAuthenticated) {
-    router.push('/login')
-  }
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const accountLevel = user.user_metadata?.account_level
+        console.log('User:', user)
+        console.log('Account Level:', accountLevel)
 
-  return isAuthenticated
+        if (accountLevel === 'admin') {
+          setIsAuthenticated(true)
+          setIsAdmin(true)
+        } else {
+          console.log('User is not an admin')
+          router.push('/')
+        }
+      } else {
+        console.log('No user found')
+        router.push('/login')
+      }
+    }
+
+    checkAuth()
+  }, [router])
+
+  return { isAuthenticated, isAdmin }
 }
 
 export default function OwnerAdminDashboard() {
-  useRequireAuth()
+  const { isAuthenticated, isAdmin } = useRequireAuth()
   const [activeTab, setActiveTab] = useState("overview")
   const [activeForm, setActiveForm] = useState("")
 
@@ -42,6 +66,10 @@ export default function OwnerAdminDashboard() {
       default:
         return null
     }
+  }
+
+  if (!isAuthenticated || !isAdmin) {
+    return null // Or a loading indicator
   }
 
   return (
