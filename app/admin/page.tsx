@@ -121,7 +121,7 @@ export default function OwnerAdminDashboard() {
               <Overview />
             </TabsContent>
             <TabsContent value="users">
-              <UserManagement onAddUser={() => setActiveForm("add-user")} />
+              <UserManagement />
             </TabsContent>
             <TabsContent value="subscriptions">
               <SubscriptionsAndCredits 
