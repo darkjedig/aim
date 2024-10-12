@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
-import { Trash2 } from "lucide-react"
+import { Trash2, Download, Upload } from "lucide-react"
 import { createClient } from '@/utils/supabase/client'
 
 const supabase = createClient()
@@ -20,6 +20,8 @@ export function SystemSettings() {
   const [newKeyName, setNewKeyName] = useState('')
   const [newKeyValue, setNewKeyValue] = useState('')
   const [isAddingKey, setIsAddingKey] = useState(false)
+  const [isRestoring, setIsRestoring] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetchApiKeys()
@@ -105,14 +107,60 @@ export function SystemSettings() {
     }
   }
 
-  const handleCreateBackup = () => {
-    console.log('Creating backup')
-    // Here you would typically trigger a backup creation process
+  const handleCreateBackup = async () => {
+    try {
+      const tables = ['users', 'subscription_plans', 'api_keys', 'tools', 'notifications']
+      const backup: { [key: string]: any } = {}
+
+      for (const table of tables) {
+        const { data, error } = await supabase.from(table).select('*')
+        if (error) throw error
+        backup[table] = data
+      }
+
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `backup_${new Date().toISOString()}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Error creating backup:', error)
+      // You might want to show an error message to the user here
+    }
   }
 
   const handleRestoreSystem = () => {
-    console.log('Restoring system')
-    // Here you would typically trigger a system restore process
+    setIsRestoring(true)
+  }
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      const fileContent = await file.text()
+      const backupData = JSON.parse(fileContent)
+
+      for (const [table, data] of Object.entries(backupData)) {
+        // First, delete all existing records
+        const { error: deleteError } = await supabase.from(table).delete().neq('id', 0)
+        if (deleteError) throw deleteError
+
+        // Then, insert the backup data
+        const { error: insertError } = await supabase.from(table).insert(data)
+        if (insertError) throw insertError
+      }
+
+      setIsRestoring(false)
+      // You might want to show a success message to the user here
+    } catch (error) {
+      console.error('Error restoring backup:', error)
+      // You might want to show an error message to the user here
+    }
   }
 
   return (
@@ -159,16 +207,24 @@ export function SystemSettings() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <Button className="w-full bg-purple-500 hover:bg-purple-600 text-white" onClick={handleCreateBackup}>Create Backup</Button>
+            <Button className="w-full bg-purple-500 hover:bg-purple-600 text-white" onClick={handleCreateBackup}>
+              <Download className="mr-2 h-4 w-4" />
+              Create Backup
+            </Button>
             <div>
               <Label htmlFor="restore-file" className="text-gray-300">Restore from Backup</Label>
               <Input
                 id="restore-file"
                 type="file"
                 className="bg-gray-700 text-gray-300 border-gray-600"
+                onChange={handleFileUpload}
+                ref={fileInputRef}
               />
             </div>
-            <Button className="w-full bg-purple-500 hover:bg-purple-600 text-white" onClick={handleRestoreSystem}>Restore System</Button>
+            <Button className="w-full bg-purple-500 hover:bg-purple-600 text-white" onClick={handleRestoreSystem}>
+              <Upload className="mr-2 h-4 w-4" />
+              Restore System
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -208,6 +264,25 @@ export function SystemSettings() {
             </Button>
             <Button onClick={handleAddNewKey} className="bg-green-500 hover:bg-green-600 text-white">
               Add Key
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRestoring} onOpenChange={setIsRestoring}>
+        <DialogContent className="bg-gray-800 text-gray-300">
+          <DialogHeader>
+            <DialogTitle>Restore System</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to restore the system? This will overwrite all current data.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRestoring(false)} className="text-gray-800 border-gray-600 hover:bg-gray-300">
+              Cancel
+            </Button>
+            <Button onClick={() => fileInputRef.current?.click()} className="bg-purple-500 hover:bg-purple-600 text-white">
+              Select Backup File
             </Button>
           </DialogFooter>
         </DialogContent>
