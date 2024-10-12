@@ -19,6 +19,15 @@ import {
 import { Cpu, ChevronDown, User as UserIcon, Settings, LogOut, Shield, Bell, Trash2 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 
+interface Notification {
+  id: number;
+  user_id: string | null;
+  title: string;
+  message: string;
+  created_at: string;
+  is_read: boolean;
+}
+
 export function Header() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,8 +35,9 @@ export function Header() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [notifications, setNotifications] = useState<any[]>([])
+  const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
+  const [hiddenNotifications, setHiddenNotifications] = useState<number[]>([])
 
   useEffect(() => {
     const getUser = async () => {
@@ -59,17 +69,21 @@ export function Header() {
 
   useEffect(() => {
     const fetchNotifications = async () => {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5);
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .or(`user_id.eq.${user.id},user_id.is.null`)
+          .order('created_at', { ascending: false })
+          .limit(5);
 
-      if (error) {
-        console.error('Error fetching notifications:', error);
-      } else {
-        setNotifications(data || []);
-        setUnreadCount(data?.filter(n => !n.is_read).length || 0);
+        if (error) {
+          console.error('Error fetching notifications:', error);
+        } else {
+          setNotifications(data || []);
+          setUnreadCount(data?.filter(n => !n.is_read).length || 0);
+        }
       }
     };
 
@@ -79,15 +93,17 @@ export function Header() {
     const notificationsSubscription = supabase
       .channel('public:notifications')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, payload => {
-        setNotifications(prev => [payload.new, ...prev].slice(0, 5));
-        setUnreadCount(prev => prev + 1);
+        if (payload.new.user_id === user?.id || payload.new.user_id === null) {
+          setNotifications(prev => [payload.new, ...prev].slice(0, 5));
+          setUnreadCount(prev => prev + 1);
+        }
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(notificationsSubscription);
     };
-  }, []);
+  }, [user]);
 
   const markAsRead = async (id: number) => {
     const { error } = await supabase
@@ -106,18 +122,14 @@ export function Header() {
   };
 
   const deleteNotification = async (id: number) => {
-    const { error } = await supabase
-      .from('notifications')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error deleting notification:', error);
-    } else {
-      setNotifications(prev => prev.filter(n => n.id !== id));
-      setUnreadCount(prev => Math.max(prev - 1, 0));
-    }
+    // Instead of deleting from the database, we just hide it for the current user
+    setHiddenNotifications(prev => [...prev, id]);
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    setUnreadCount(prev => Math.max(prev - 1, 0));
   };
+
+  // Filter out hidden notifications
+  const visibleNotifications = notifications.filter(n => !hiddenNotifications.includes(n.id));
 
   const handleLogout = async () => {
     try {
@@ -231,14 +243,14 @@ export function Header() {
             <DropdownMenuContent className="w-80 bg-gray-800 border-gray-700">
               <DropdownMenuLabel className="text-gray-300">Notifications</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {notifications.map((notification) => (
+              {visibleNotifications.map((notification) => (
                 <DropdownMenuItem 
                   key={notification.id}
-                  className="text-gray-300 hover:bg-gray-700 flex justify-between items-start"
+                  className="text-gray-300 hover:bg-gray-700 flex justify-between items-start group"
                 >
-                  <div onClick={() => markAsRead(notification.id)} className="cursor-pointer flex-grow">
+                  <div onClick={() => markAsRead(notification.id)} className="cursor-pointer flex-grow group-hover:text-white">
                     <div className="font-semibold">{notification.title}</div>
-                    <div className="text-sm text-gray-400">{notification.message}</div>
+                    <div className="text-sm text-gray-400 group-hover:text-white">{notification.message}</div>
                   </div>
                   <Button 
                     variant="ghost" 

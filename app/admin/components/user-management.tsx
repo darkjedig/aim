@@ -19,9 +19,17 @@ interface User {
   credits: number;
   last_login: string | null;
   account_level: 'customer' | 'admin';
+  subscription: string;
 }
 
-function EditUserForm({ user, onSave, onCancel }: { user: User; onSave: (user: User) => void; onCancel: () => void }) {
+interface SubscriptionPlan {
+  id: number;
+  name: string;
+  credits: number;
+  price: number;
+}
+
+function EditUserForm({ user, onSave, onCancel, subscriptionPlans }: { user: User; onSave: (user: User) => void; onCancel: () => void; subscriptionPlans: SubscriptionPlan[] }) {
   const [editedUser, setEditedUser] = useState(user);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -31,6 +39,10 @@ function EditUserForm({ user, onSave, onCancel }: { user: User; onSave: (user: U
 
   const handleAccountLevelChange = (value: 'customer' | 'admin') => {
     setEditedUser(prev => ({ ...prev, account_level: value }));
+  };
+
+  const handleSubscriptionChange = (value: string) => {
+    setEditedUser(prev => ({ ...prev, subscription: value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -94,6 +106,20 @@ function EditUserForm({ user, onSave, onCancel }: { user: User; onSave: (user: U
           </SelectContent>
         </Select>
       </div>
+      <div className="space-y-2">
+        <label htmlFor="subscription" className="text-sm font-medium text-gray-300">Subscription</label>
+        <Select onValueChange={handleSubscriptionChange} defaultValue={editedUser.subscription}>
+          <SelectTrigger className="bg-gray-700 text-gray-300 border-gray-600 focus:border-purple-500">
+            <SelectValue placeholder="Select subscription" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="credits">Pay-as-you-go (Credits)</SelectItem>
+            {subscriptionPlans.map((plan) => (
+              <SelectItem key={plan.id} value={plan.name}>{plan.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       <div className="flex space-x-2 pt-4">
         <Button type="submit" className="bg-purple-500 hover:bg-purple-600 text-white">
           Save User
@@ -106,7 +132,7 @@ function EditUserForm({ user, onSave, onCancel }: { user: User; onSave: (user: U
   );
 }
 
-function AddUserForm({ onSave, onCancel }: { onSave: (user: Omit<User, 'id' | 'user_id'> & { password: string }) => void; onCancel: () => void }) {
+function AddUserForm({ onSave, onCancel, subscriptionPlans }: { onSave: (user: Omit<User, 'id' | 'user_id'> & { password: string }) => void; onCancel: () => void; subscriptionPlans: SubscriptionPlan[] }) {
   const [newUser, setNewUser] = useState<Omit<User, 'id' | 'user_id'> & { password: string }>({
     name: '',
     email: '',
@@ -115,6 +141,7 @@ function AddUserForm({ onSave, onCancel }: { onSave: (user: Omit<User, 'id' | 'u
     credits: 0,
     last_login: null,
     account_level: 'customer',
+    subscription: 'credits',
   });
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
@@ -222,6 +249,21 @@ function AddUserForm({ onSave, onCancel }: { onSave: (user: Omit<User, 'id' | 'u
           </SelectContent>
         </Select>
       </div>
+      <div className="space-y-2">
+        <label htmlFor="subscription" className="text-sm font-medium text-gray-300">Subscription</label>
+        <Select onValueChange={(value) => setNewUser(prev => ({ ...prev, subscription: value }))} defaultValue={newUser.subscription}>
+          <SelectTrigger className="bg-gray-700 text-gray-300 border-gray-600 focus:border-purple-500">
+            <SelectValue placeholder="Select subscription" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="credits">Pay-as-you-go (Credits)</SelectItem>
+            {subscriptionPlans.map((plan) => (
+              <SelectItem key={plan.id} value={plan.name}>{plan.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {errors.subscription && <p className="text-red-500 text-xs">{errors.subscription}</p>}
+      </div>
       <div className="flex space-x-2 pt-4">
         <Button type="submit" className="bg-purple-500 hover:bg-purple-600 text-white">
           Create User
@@ -238,6 +280,7 @@ const supabase = createClient();
 
 export function UserManagement() {
   const [users, setUsers] = useState<User[]>([])
+  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [addingUser, setAddingUser] = useState(false)
@@ -291,7 +334,20 @@ export function UserManagement() {
       }
     }
 
+    const fetchSubscriptionPlans = async () => {
+      const { data, error } = await supabase
+        .from('subscription_plans')
+        .select('*')
+        .order('credits', { ascending: true });
+      if (error) {
+        console.error('Error fetching subscription plans:', error);
+      } else {
+        setSubscriptionPlans(data || []);
+      }
+    }
+
     checkAdminStatus()
+    fetchSubscriptionPlans()
   }, [router])
 
   if (isLoading) {
@@ -303,7 +359,6 @@ export function UserManagement() {
   }
 
   const handleSaveUser = async (editedUser: User) => {
-    // Create a new object without the 'id' and 'user_id' fields
     const { id, user_id, ...updateData } = editedUser;
 
     const { data, error } = await supabase
@@ -330,6 +385,7 @@ export function UserManagement() {
           data: {
             name: newUser.name,
             account_level: newUser.account_level,
+            subscription: newUser.subscription,
           },
         },
       });
@@ -337,8 +393,6 @@ export function UserManagement() {
       if (error) throw error;
 
       if (data && data.user) {
-        // The trigger will add the user to the public users table
-        // Refresh the users list to include the new user
         const { data: updatedUsers, error: fetchError } = await supabase
           .from('users')
           .select('*')
@@ -433,10 +487,10 @@ export function UserManagement() {
         {addingUser ? (
           <>
             {addUserError && <p className="text-red-500 mb-4">{addUserError}</p>}
-            <AddUserForm onSave={handleAddUser} onCancel={() => setAddingUser(false)} />
+            <AddUserForm onSave={handleAddUser} onCancel={() => setAddingUser(false)} subscriptionPlans={subscriptionPlans} />
           </>
         ) : editingUser ? (
-          <EditUserForm user={editingUser} onSave={handleSaveUser} onCancel={() => setEditingUser(null)} />
+          <EditUserForm user={editingUser} onSave={handleSaveUser} onCancel={() => setEditingUser(null)} subscriptionPlans={subscriptionPlans} />
         ) : (
           <Table>
             <TableHeader>
@@ -447,6 +501,7 @@ export function UserManagement() {
                 <TableHead className="text-gray-100">Credits</TableHead>
                 <TableHead className="text-gray-100">Last Login</TableHead>
                 <TableHead className="text-gray-100">Account Level</TableHead>
+                <TableHead className="text-gray-100">Subscription</TableHead>
                 <TableHead className="text-gray-100">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -467,6 +522,7 @@ export function UserManagement() {
                     {user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}
                   </TableCell>
                   <TableCell className="text-gray-300">{user.account_level}</TableCell>
+                  <TableCell className="text-gray-300">{user.subscription}</TableCell>
                   <TableCell className="text-gray-300">
                     <Button variant="ghost" size="sm" className="hover:bg-purple-500 hover:text-white mr-2" onClick={() => handleEditUser(user)}>
                       <Edit className="h-4 w-4 mr-1" />

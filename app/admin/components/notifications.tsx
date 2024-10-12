@@ -68,8 +68,6 @@ function EditNotificationForm({ notification, onSave, onCancel }: { notification
 export function Notifications() {
   const [systemNotifications, setSystemNotifications] = useState({
     lowCreditBalance: 10,
-    subscriptionExpiration: 7,
-    apiKeyError: true,
   })
 
   const [userAlert, setUserAlert] = useState({
@@ -82,6 +80,9 @@ export function Notifications() {
 
   useEffect(() => {
     fetchNotifications()
+    fetchSystemSettings()
+    const interval = setInterval(checkLowCreditBalances, 60000) // Check every minute
+    return () => clearInterval(interval)
   }, [])
 
   const fetchNotifications = async () => {
@@ -98,10 +99,10 @@ export function Notifications() {
   }
 
   const handleSystemNotificationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target
+    const { name, value } = e.target
     setSystemNotifications(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : Number(value),
+      [name]: Number(value),
     }))
   }
 
@@ -113,10 +114,32 @@ export function Notifications() {
     }))
   }
 
+  const fetchSystemSettings = async () => {
+    const { data, error } = await supabase
+      .from('system_settings')
+      .select('*')
+      .eq('key', 'lowCreditBalance')
+      .single()
+
+    if (error) {
+      console.error('Error fetching system settings:', error)
+    } else if (data) {
+      setSystemNotifications(prev => ({ ...prev, lowCreditBalance: data.value }))
+    }
+  }
+
   const handleSaveSystemNotifications = async () => {
-    // Here you would typically save the settings to your backend
-    console.log('Saving system notifications:', systemNotifications)
-    // Implement the logic to save system notification settings
+    const { error } = await supabase
+      .from('system_settings')
+      .upsert({ key: 'lowCreditBalance', value: systemNotifications.lowCreditBalance })
+
+    if (error) {
+      console.error('Error saving system notifications:', error)
+    } else {
+      console.log('System notifications saved successfully')
+      // Trigger an immediate check after saving
+      checkLowCreditBalances()
+    }
   }
 
   const handleSendUserAlert = async () => {
@@ -139,14 +162,19 @@ export function Notifications() {
 
   const handleDeleteNotification = async (id: number) => {
     try {
-      const { error } = await supabase
+      // Only delete if it's a system-wide notification (user_id is null)
+      const { data, error } = await supabase
         .from('notifications')
         .delete()
-        .eq('id', id);
+        .match({ id: id, user_id: null });
 
       if (error) throw error;
 
-      setNotifications(notifications.filter(notification => notification.id !== id));
+      if (data) {
+        setNotifications(notifications.filter(notification => notification.id !== id));
+      } else {
+        console.log('Notification not deleted. It might be a user-specific notification.');
+      }
     } catch (error) {
       console.error('Error deleting notification:', error);
     }
@@ -175,6 +203,54 @@ export function Notifications() {
     }
   }
 
+  const checkLowCreditBalances = async () => {
+    console.log('Checking low credit balances...')
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('user_id, name, email, credits')
+      .lte('credits', systemNotifications.lowCreditBalance)  // Changed from .eq to .lte
+
+    if (error) {
+      console.error('Error fetching users with low credit balance:', error)
+      return
+    }
+
+    console.log('Users with low credit balance:', users)
+
+    for (const user of users) {
+      const notificationTitle = 'Low Credit Balance'
+      const notificationMessage = `Your credit balance is low. You currently have ${user.credits} credits.`
+
+      const { data: existingNotification, error: checkError } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.user_id)
+        .eq('title', notificationTitle)
+        .single()
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking existing notification:', checkError)
+        continue
+      }
+
+      if (!existingNotification) {
+        const { error: insertError } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: user.user_id,
+            title: notificationTitle,
+            message: notificationMessage,
+          })
+
+        if (insertError) {
+          console.error('Error inserting notification:', insertError)
+        } else {
+          console.log('Low credit balance notification sent to user:', user.user_id)
+        }
+      }
+    }
+  }
+
   return (
     <div className="space-y-8">
       <Card className="bg-gray-800 border-0 shadow-lg shadow-purple-500/10">
@@ -192,28 +268,6 @@ export function Notifications() {
                 value={systemNotifications.lowCreditBalance}
                 onChange={handleSystemNotificationChange}
                 className="w-20 bg-gray-700 text-gray-300 border-gray-600"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="subscriptionExpiration" className="text-gray-300">Subscription expiration reminder (days before)</Label>
-              <Input
-                id="subscriptionExpiration"
-                name="subscriptionExpiration"
-                type="number"
-                value={systemNotifications.subscriptionExpiration}
-                onChange={handleSystemNotificationChange}
-                className="w-20 bg-gray-700 text-gray-300 border-gray-600"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="apiKeyError" className="text-gray-300">API key error notification</Label>
-              <Input
-                id="apiKeyError"
-                name="apiKeyError"
-                type="checkbox"
-                checked={systemNotifications.apiKeyError}
-                onChange={handleSystemNotificationChange}
-                className="bg-gray-700 text-purple-500 border-gray-600"
               />
             </div>
           </div>

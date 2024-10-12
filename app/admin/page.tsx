@@ -25,11 +25,16 @@ const useRequireAuth = () => {
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const accountLevel = user.user_metadata?.account_level
-        console.log('User:', user)
-        console.log('Account Level:', accountLevel)
+        const { data, error } = await supabase
+          .from('users')
+          .select('account_level')
+          .eq('user_id', user.id)
+          .single()
 
-        if (accountLevel === 'admin') {
+        if (error) {
+          console.error('Error fetching user data:', error)
+          router.push('/')
+        } else if (data?.account_level === 'admin') {
           setIsAuthenticated(true)
           setIsAdmin(true)
         } else {

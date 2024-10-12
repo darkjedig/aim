@@ -159,6 +159,16 @@ export function SubscriptionsAndCredits({ onAddPlan }: SubscriptionsAndCreditsPr
       } else if (data) {
         setSubscriptionPlans(plans => plans.map(plan => plan.id === editedItem.id ? data[0] : plan));
         setEditingPlan(null);
+        
+        // Update users' subscription column
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ subscription: editedItem.name })
+          .eq('subscription', editedItem.name);
+        
+        if (updateError) {
+          console.error('Error updating users\' subscriptions:', updateError);
+        }
       }
     }
   };
