@@ -15,7 +15,7 @@ export async function GET() {
     .eq('user_id', user.id)
     .single()
 
-  if (userError || userData?.account_level !== 'admin') {
+  if (userError || (userData?.account_level !== 'admin' && userData?.account_level !== 'customer')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

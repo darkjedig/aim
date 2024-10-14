@@ -30,10 +30,6 @@ function EditToolForm({ tool, onSave, onCancel }: { tool: Tool; onSave: (tool: T
     setEditedTool(prev => ({ ...prev, [name]: name === 'credit_cost' ? Number(value) : value }));
   };
 
-  const handleModelChange = (value: string) => {
-    setEditedTool(prev => ({ ...prev, ai_model: value }));
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(editedTool);
@@ -64,17 +60,14 @@ function EditToolForm({ tool, onSave, onCancel }: { tool: Tool; onSave: (tool: T
       </div>
       <div className="space-y-2">
         <label htmlFor="ai_model" className="text-sm font-medium text-gray-300">AI Model</label>
-        <Select onValueChange={handleModelChange} defaultValue={editedTool.ai_model}>
-          <SelectTrigger className="bg-gray-700 text-gray-300 border-gray-600 focus:border-purple-500">
-            <SelectValue placeholder="Select AI model" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="OpenAI GPT-4">OpenAI GPT-4</SelectItem>
-            <SelectItem value="Anthropic Claude">Anthropic Claude</SelectItem>
-            <SelectItem value="DALL-E 2">DALL-E 2</SelectItem>
-            <SelectItem value="Custom ML Model">Custom ML Model</SelectItem>
-          </SelectContent>
-        </Select>
+        <Input 
+          id="ai_model"
+          name="ai_model" 
+          value={editedTool.ai_model} 
+          onChange={handleChange} 
+          className="bg-gray-700 text-gray-300 border-gray-600 focus:border-purple-500"
+        />
+        <p className="text-xs text-gray-400">Please enter the exact model name as specified by the API provider.</p>
       </div>
       <div className="flex space-x-2 pt-4">
         <Button type="submit" className="bg-purple-500 hover:bg-purple-600 text-white">
