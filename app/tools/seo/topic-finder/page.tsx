@@ -12,6 +12,8 @@ import { Loader2, Play, PenTool, Save, Download } from "lucide-react"
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { v4 as uuidv4 } from 'uuid';
 
 const supabase = createClient()
 
@@ -36,15 +38,26 @@ export default function TopicFinder() {
   const [userCredits, setUserCredits] = useState<number | null>(null)
   const { toast } = useToast()
   const router = useRouter()
+  const [user, setUser] = useState<any>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
 
   useEffect(() => {
     fetchToolConfig()
     fetchUserCredits()
-    const storedTopics = localStorage.getItem('topicFinderResults')
-    if (storedTopics) {
-      setTopics(JSON.parse(storedTopics))
-    }
+    checkUser()
   }, [])
+
+  const checkUser = async () => {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser()
+      if (error) throw error
+      setUser(user)
+    } catch (error) {
+      console.error('Error fetching user:', error)
+      setUser(null)
+    }
+  }
 
   const fetchToolConfig = async () => {
     const { data, error } = await supabase
@@ -61,19 +74,30 @@ export default function TopicFinder() {
   }
 
   const fetchUserCredits = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data, error } = await supabase
-        .from('users')
-        .select('credits')
-        .eq('user_id', user.id)
-        .single()
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data, error } = await supabase
+          .from('users')
+          .select('credits')
+          .eq('user_id', user.id)
+          .single()
 
-      if (error) {
-        console.error('Error fetching user credits:', error)
-      } else {
-        setUserCredits(data.credits)
+        if (error) {
+          console.error('Error fetching user credits:', error)
+          throw error
+        }
+
+        if (data) {
+          setUserCredits(data.credits)
+        } else {
+          console.error('User credits not found')
+          setUserCredits(null)
+        }
       }
+    } catch (error) {
+      console.error('Error fetching user credits:', error)
+      setUserCredits(null)
     }
   }
 
@@ -201,12 +225,44 @@ export default function TopicFinder() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to use this tool.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (userCredits === null) {
+      toast({
+        title: "Error",
+        description: "Unable to fetch your credits. Please try again later.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (toolConfig === null) {
+      toast({
+        title: "Error",
+        description: "Unable to fetch tool configuration. Please try again later.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (userCredits < toolConfig.credit_cost) {
+      toast({
+        title: "Insufficient Credits",
+        description: `You need ${toolConfig.credit_cost} credits to use this tool. You currently have ${userCredits} credits.`,
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsLoading(true)
     try {
-      if (!userCredits || userCredits < toolConfig!.credit_cost) {
-        throw new Error('Insufficient credits')
-      }
-
       const urlList = urls.split('\n').filter(url => url.trim() !== '')
       const extractedText = await extractTextFromUrls(urlList)
       const generatedTopics = await generateTopics(extractedText, niche, topicCount)
@@ -236,25 +292,25 @@ export default function TopicFinder() {
   }
 
   const handleSaveTopics = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        toast({
-          title: "Error",
-          description: "You must be logged in to save topics.",
-          variant: "destructive",
-        })
-        return
-      }
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to save topics.",
+        variant: "destructive",
+      })
+      return
+    }
 
-      const generationId = Date.now().toString() // Generate a unique ID for this generation
+    setIsSaving(true)
+    try {
+      const generationId = uuidv4();
       const savedTopics = topics.map(topic => ({
         user_id: user.id,
         title: topic.title,
         description: topic.description,
         keywords: topic.keywords,
         tool: 'SEO Topic Finder',
-        generation_id: generationId, // Add this line
+        generation_id: generationId,
       }))
 
       const { data, error } = await supabase
@@ -265,10 +321,8 @@ export default function TopicFinder() {
 
       toast({
         title: "Success",
-        description: "Topics saved successfully!",
+        description: "Topics saved to your dashboard!",
       })
-
-      router.refresh() // Refresh the page to update the content library
     } catch (error) {
       console.error('Error saving topics:', error)
       toast({
@@ -276,22 +330,41 @@ export default function TopicFinder() {
         description: "Failed to save topics. Please try again.",
         variant: "destructive",
       })
+    } finally {
+      setIsSaving(false)
     }
   }
 
   const handleDownloadTopics = () => {
-    const csvContent = topics.map(topic => 
-      `"${topic.title}","${topic.description}","${topic.keywords.join(', ')}"`
-    ).join('\n')
+    setIsDownloading(true)
+    try {
+      const csvContent = topics.map(topic => 
+        `"${topic.title}","${topic.description}","${topic.keywords.join(', ')}"`
+      ).join('\n')
 
-    const blob = new Blob([`Title,Description,Keywords\n${csvContent}`], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `generated_topics_${new Date().toISOString().split('T')[0]}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+      const blob = new Blob([`Title,Description,Keywords\n${csvContent}`], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `generated_topics_${new Date().toISOString().split('T')[0]}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      toast({
+        title: "Success",
+        description: "Topics downloaded successfully!",
+      })
+    } catch (error) {
+      console.error('Error downloading topics:', error)
+      toast({
+        title: "Error",
+        description: "Failed to download topics. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDownloading(false)
+    }
   }
 
   return (
@@ -363,10 +436,25 @@ export default function TopicFinder() {
                   onChange={(e) => setTopicCount(Number(e.target.value))}
                 />
               </div>
-              <Button type="submit" className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white" disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {isLoading ? 'Finding Topics...' : 'Find Topics'}
-              </Button>
+              {user ? (
+                <Button type="submit" className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {isLoading ? 'Finding Topics...' : 'Find Topics'}
+                </Button>
+              ) : (
+                <Card className="bg-gray-700 border-0 shadow-lg shadow-purple-500/10 p-4">
+                  <CardTitle className="text-xl font-bold text-white mb-2">Authentication Required</CardTitle>
+                  <p className="text-gray-300 mb-4">Please sign in to use the Topic Finder tool.</p>
+                  <div className="flex space-x-4">
+                    <Link href="/sign-in">
+                      <Button className="bg-purple-600 hover:bg-purple-700 text-white">Sign In</Button>
+                    </Link>
+                    <Link href="/sign-up">
+                      <Button className="bg-pink-600 hover:bg-pink-700 text-white">Sign Up</Button>
+                    </Link>
+                  </div>
+                </Card>
+              )}
             </form>
           </div>
           
@@ -379,19 +467,21 @@ export default function TopicFinder() {
                     variant="outline" 
                     size="sm" 
                     onClick={handleSaveTopics}
-                    className="bg-gray-800 text-white border-purple-500 hover:bg-purple-500/20"
+                    className="bg-gray-800 text-white border-purple-500 hover:bg-purple-500/20 hover:text-white"
+                    disabled={isSaving}
                   >
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Topics
+                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    {isSaving ? 'Saving...' : 'Save Topics'}
                   </Button>
                   <Button 
                     variant="outline" 
                     size="sm" 
                     onClick={handleDownloadTopics}
-                    className="bg-gray-800 text-white border-purple-500 hover:bg-purple-500/20"
+                    className="bg-gray-800 text-white border-purple-500 hover:bg-purple-500/20 hover:text-white"
+                    disabled={isDownloading}
                   >
-                    <Download className="mr-2 h-4 w-4" />
-                    Download Topics
+                    {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                    {isDownloading ? 'Downloading...' : 'Download Topics'}
                   </Button>
                 </div>
               </div>

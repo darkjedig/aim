@@ -11,7 +11,7 @@ const config = {
   prefix: "",
   theme: {
   	container: {
-  		center: 'true',
+  		center: true,
   		padding: '2rem',
   		screens: {
   			'2xl': '1400px'
@@ -75,28 +75,15 @@ const config = {
   					height: '0'
   				}
   			},
-  			'accordion-down': {
-  				from: {
-  					height: '0'
-  				},
-  				to: {
-  					height: 'var(--radix-accordion-content-height)'
-  				}
+  			'fall': {
+  				'0%': { transform: 'translateY(-20vh) rotate(0deg)' },
+  				'100%': { transform: 'translateY(120vh) rotate(360deg)' },
   			},
-  			'accordion-up': {
-  				from: {
-  					height: 'var(--radix-accordion-content-height)'
-  				},
-  				to: {
-  					height: '0'
-  				}
-  			}
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out',
-  			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+  			'fall': 'fall 10s linear infinite',
   		}
   	}
   },
