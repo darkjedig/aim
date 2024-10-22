@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
@@ -8,34 +8,100 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Slider } from "@/components/ui/slider"
 import { CreditCard, Lock, ShieldCheck, Check, Search, BarChart, Share2, ImageIcon } from 'lucide-react'
 import { PricingAnimatedBackground } from '@/components/pricing-animated-background'
+import { useRouter } from 'next/navigation'
+import { useToast } from "@/components/ui/use-toast"
+import { createClient } from '@/utils/supabase/client'
+import Link from 'next/link'
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Session } from '@supabase/supabase-js'
+
+interface Plan {
+  id: number;
+  name: string;
+  credits: number;
+  price: number;
+  stripe_product_id: string;
+  stripe_price_id: string;
+  billing_cycle: 'monthly' | 'annual';
+  features?: string[];
+  gradient?: string;
+}
+
+interface CreditPricing {
+  id: number;
+  price_per_credit: number;
+  stripe_product_id: string;
+  stripe_price_id: string;
+  title: string;
+  features?: string[];
+}
+
+const gradients = [
+  'from-blue-400 to-cyan-300',
+  'from-purple-400 to-pink-300',
+  'from-orange-400 to-red-300',
+]
 
 export default function PricingPage() {
+  const router = useRouter()
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly')
   const [creditAmount, setCreditAmount] = useState(100)
+  const { toast } = useToast()
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const supabase = createClient()
+  const [showAuthAlert, setShowAuthAlert] = useState<'subscribe' | 'credits' | null>(null)
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [session, setSession] = useState<Session | null>(null)
+  const [creditPricing, setCreditPricing] = useState<CreditPricing | null>(null);
 
-  const plans = [
-    {
-      name: 'Basic',
-      gradient: 'from-blue-400 to-cyan-300',
-      price: billingCycle === 'monthly' ? '£39.99' : '£399.90',
-      credits: 600,
-      features: ['Access to all basic tools', 'Email support', '5 team members', 'Cancel anytime', '14-day money-back guarantee'],
-    },
-    {
-      name: 'Pro',
-      gradient: 'from-purple-400 to-pink-300',
-      price: billingCycle === 'monthly' ? '£99.99' : '£999.90',
-      credits: 1800,
-      features: ['Access to all pro tools', 'Priority email support', '10 team members', 'Advanced analytics', 'Cancel anytime', '14-day money-back guarantee'],
-    },
-    {
-      name: 'Enterprise',
-      gradient: 'from-orange-400 to-red-300',
-      price: billingCycle === 'monthly' ? '£249.99' : '£2499.90',
-      credits: 5500,
-      features: ['Access to all enterprise tools', 'Dedicated account manager', 'Unlimited team members', 'Custom integrations', 'Cancel anytime', '14-day money-back guarantee'],
-    },
-  ]
+  useEffect(() => {
+    const fetchPlans = async () => {
+      const { data, error } = await supabase
+        .from('subscription_plans')
+        .select('*')
+        .order('credits', { ascending: true });
+      if (error) {
+        console.error('Error fetching plans:', error);
+      } else {
+        const processedPlans = data.map((plan, index) => ({
+          ...plan,
+          name: plan.name.split(' ')[0], // Take only the first word of the name
+          gradient: gradients[index % gradients.length], // Assign a gradient
+        }));
+        setPlans(processedPlans || []);
+      }
+    };
+
+    fetchPlans();
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      setIsAuthenticated(!!session)
+    })
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+      setIsAuthenticated(!!session)
+    })
+
+    const fetchCreditPricing = async () => {
+      const { data, error } = await supabase
+        .from('credit_pricing')
+        .select('*')
+        .single();
+      if (error) {
+        console.error('Error fetching credit pricing:', error);
+      } else {
+        setCreditPricing(data);
+      }
+    };
+
+    fetchCreditPricing();
+
+    return () => subscription.unsubscribe()
+  }, [])
 
   const tools = [
     { category: 'SEO Tools', items: ['Topic Finder', 'Strategy Builder', 'Blog Writer', 'Outrank', 'Internal Link Optimizer'], icon: Search },
@@ -104,99 +170,188 @@ export default function PricingPage() {
     },
   ]
 
+  const handleSubscribe = async (priceId: string) => {
+    if (!session) {
+      setShowAuthAlert('subscribe')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          priceId,
+          successUrl: `${window.location.origin}/success`,
+          cancelUrl: `${window.location.origin}/pricing`,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.url) {
+        window.location.href = data.url;
+      } else if (response.status === 401) {
+        console.error('Authentication error:', data.error);
+        setIsAuthenticated(false);
+        setShowAuthAlert('subscribe');
+      } else {
+        throw new Error(data.error || 'Failed to create checkout session');
+      }
+    } catch (err) {
+      console.error('Error:', err);
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "An unexpected error occurred",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBuyCredits = async () => {
+    if (!session) {
+      setShowAuthAlert('credits')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          priceId: creditPricing?.stripe_price_id,
+          quantity: creditAmount,
+          successUrl: `${window.location.origin}/success`,
+          cancelUrl: `${window.location.origin}/pricing`,
+          mode: 'payment', // Use 'payment' mode for one-time purchases
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error(data.error || 'Failed to create checkout session');
+      }
+    } catch (err) {
+      console.error('Error:', err);
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "An unexpected error occurred",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
-      <div className="relative h-[300px] overflow-hidden">
-        <PricingAnimatedBackground />
-        <div className="absolute inset-0 flex items-center justify-center z-10">
-          <div className="text-center">
-            <h2 className="text-4xl font-extrabold sm:text-5xl bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
-              Choose Your Plan
-            </h2>
-            <p className="mt-4 text-xl text-gray-300">
-              Select the perfect plan for your marketing needs
-            </p>
-          </div>
+      <PricingAnimatedBackground />
+      <div className="container mx-auto px-4 py-16 relative z-10">
+        <h1 className="text-4xl font-bold text-center mb-8">Choose Your Plan</h1>
+        <div className="flex justify-center items-center mb-8">
+          <span className="mr-2">Monthly</span>
+          <Switch
+            checked={billingCycle === 'annual'}
+            onCheckedChange={(checked) => setBillingCycle(checked ? 'annual' : 'monthly')}
+          />
+          <span className="ml-2">Annual (Save 20%)</span>
         </div>
-      </div>
-
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="flex justify-center mb-12">
-          <div className="flex items-center space-x-4">
-            <span className="text-sm font-medium text-gray-300">Monthly</span>
-            <Switch
-              checked={billingCycle === 'annual'}
-              onCheckedChange={() => setBillingCycle(billingCycle === 'monthly' ? 'annual' : 'monthly')}
-            />
-            <span className="text-sm font-medium text-gray-300">Annual (Save 20%)</span>
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {plans.map((plan) => (
-            <Card key={plan.name} className="bg-gray-800 border-purple-500/20 shadow-lg shadow-purple-500/10 transition-all duration-300 hover:scale-105 hover:shadow-purple-500/30">
+          {plans.filter(plan => plan.billing_cycle === billingCycle).map((plan) => (
+            <Card key={plan.id} className="bg-gray-800 border-purple-500/20 shadow-lg shadow-purple-500/10 transition-all duration-300 hover:scale-105 hover:shadow-purple-500/30">
               <CardHeader>
                 <CardTitle className={`text-3xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r ${plan.gradient}`}>
                   {plan.name}
                 </CardTitle>
                 <CardDescription className="text-center text-gray-300">
-                  {plan.credits} credits / {billingCycle === 'monthly' ? 'month' : 'year'}
+                  {plan.credits} credits / {plan.billing_cycle === 'annual' ? 'year' : 'month'}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-center mb-6">
-                  <span className="text-4xl font-extrabold text-white">{plan.price}</span>
-                  <span className="text-gray-300">/{billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
+                  <span className="text-4xl font-extrabold text-white">£{plan.price.toFixed(2)}</span>
+                  <span className="text-gray-300">/{plan.billing_cycle === 'annual' ? 'yr' : 'mo'}</span>
                 </div>
-                <ul className="space-y-2">
-                  {plan.features.map((feature, index) => (
+                {plan.features && (
+                  <ul className="space-y-2">
+                    {plan.features.map((feature, index) => (
+                      <li key={index} className="flex items-center text-gray-300">
+                        <Check className="h-5 w-5 text-purple-500 mr-2" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+              <CardFooter>
+                <Button 
+                  className="w-full bg-purple-600 hover:bg-purple-700"
+                  onClick={() => handleSubscribe(plan.stripe_price_id)}
+                >
+                  {isAuthenticated ? "Get Started" : "Sign Up to Subscribe"}
+                </Button>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+
+        {/* Credit-Only Option */}
+        {creditPricing && (
+          <Card className="mt-12 bg-gray-800 border-purple-500/20 shadow-lg shadow-purple-500/10">
+            <CardHeader>
+              <CardTitle className="text-2xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-teal-300">{creditPricing.title}</CardTitle>
+              <CardDescription className="text-center text-gray-300">
+                Purchase credits without a subscription
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center mb-6">
+                <span className="text-4xl font-extrabold text-white">£{creditPricing.price_per_credit.toFixed(2)}</span>
+                <span className="text-gray-300"> per credit</span>
+              </div>
+              <div className="flex items-center justify-center space-x-4">
+                <Slider
+                  value={[creditAmount]}
+                  onValueChange={(value) => setCreditAmount(value[0])}
+                  max={1000}
+                  step={10}
+                  className="w-64"
+                />
+                <span className="text-xl font-semibold text-white">{creditAmount} credits</span>
+              </div>
+              <p className="text-center text-gray-300 mt-4">
+                Total: £{(creditAmount * creditPricing.price_per_credit).toFixed(2)}
+              </p>
+              {creditPricing.features && (
+                <ul className="space-y-2 mt-4">
+                  {creditPricing.features.map((feature, index) => (
                     <li key={index} className="flex items-center text-gray-300">
                       <Check className="h-5 w-5 text-purple-500 mr-2" />
                       {feature}
                     </li>
                   ))}
                 </ul>
-              </CardContent>
-              <CardFooter>
-                <Button className="w-full bg-purple-600 hover:bg-purple-700">
-                  Get Started
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-          <Card className="bg-gray-800 border-purple-500/20 shadow-lg shadow-purple-500/10 transition-all duration-300 hover:scale-105 hover:shadow-purple-500/30">
-            <CardHeader>
-              <CardTitle className="text-3xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-teal-300">
-                Credit-Only Option
-              </CardTitle>
-              <CardDescription className="text-center text-gray-300">
-                Purchase credits without a subscription
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-white text-center mb-6">£0.05 <span className="text-xl font-normal text-gray-300">per credit</span></p>
-              <div className="mt-6">
-                <Slider
-                  min={100}
-                  max={10000}
-                  step={100}
-                  value={[creditAmount]}
-                  onValueChange={(value) => setCreditAmount(value[0])}
-                  className="w-full"
-                />
-                <p className="mt-4 text-gray-300 text-center">
-                  {creditAmount} credits for £{(creditAmount * 0.05).toFixed(2)}
-                </p>
-              </div>
+              )}
             </CardContent>
             <CardFooter>
-              <Button className="w-full bg-purple-600 hover:bg-purple-700">
-                Buy Credits
+              <Button 
+                className="w-full bg-purple-600 hover:bg-purple-700"
+                onClick={handleBuyCredits}
+              >
+                {isAuthenticated ? "Buy Credits" : "Sign Up to Buy Credits"}
               </Button>
             </CardFooter>
           </Card>
-        </div>
+        )}
 
+        {/* Our Tools Section */}
         <div className="mt-16">
           <h3 className="text-2xl font-bold text-center mb-8 text-white">Discover Our Powerful Tools</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -229,40 +384,28 @@ export default function PricingPage() {
           </div>
         </div>
 
-        <div className="mt-16">
-          <h3 className="text-2xl font-bold text-center mb-8 text-white">Frequently Asked Questions</h3>
-          <Accordion type="single" collapsible className="max-w-2xl mx-auto">
+        {/* FAQ Section */}
+        <section className="mt-16">
+          <h2 className="text-3xl font-bold text-center mb-8">Frequently Asked Questions</h2>
+          <Accordion type="single" collapsible className="w-full max-w-3xl mx-auto">
             {faqItems.map((item, index) => (
               <AccordionItem key={index} value={`item-${index}`}>
-                <AccordionTrigger className="text-white">{item.question}</AccordionTrigger>
-                <AccordionContent className="text-gray-300">{item.answer}</AccordionContent>
+                <AccordionTrigger className="text-white hover:text-purple-400">{item.question}</AccordionTrigger>
+                <AccordionContent className="text-gray-300">
+                  {item.answer}
+                </AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>
-        </div>
+        </section>
 
-        <div className="mt-16 text-center">
-          <h3 className="text-2xl font-bold mb-4 text-white">Need a Custom Solution?</h3>
-          <p className="text-gray-300 mb-6">Contact our sales team for tailored enterprise solutions</p>
-          <Button className="bg-purple-600 hover:bg-purple-700">
-            Contact Sales
-          </Button>
-        </div>
-
-        <div className="mt-16 flex justify-center space-x-8">
-          <div className="flex items-center">
-            <CreditCard className="h-6 w-6 text-gray-400 mr-2" />
-            <span className="text-gray-300">Secure Payments</span>
-          </div>
-          <div className="flex items-center">
-            <Lock className="h-6 w-6 text-gray-400 mr-2" />
-            <span className="text-gray-300">SSL Encrypted</span>
-          </div>
-          <div className="flex items-center">
-            <ShieldCheck className="h-6 w-6 text-gray-400 mr-2" />
-            <span className="text-gray-300">14-Day Money-Back Guarantee</span>
-          </div>
-        </div>
+        {showAuthAlert && (
+          <Alert className="mt-4 bg-purple-500/20 border border-purple-500">
+            <AlertDescription>
+              Please <Link href="/sign-in" className="font-bold hover:underline">sign in</Link> or <Link href="/sign-up" className="font-bold hover:underline">create an account</Link> to {showAuthAlert === 'subscribe' ? 'subscribe' : 'buy credits'}.
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
     </div>
   )

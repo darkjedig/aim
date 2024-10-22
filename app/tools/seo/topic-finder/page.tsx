@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { v4 as uuidv4 } from 'uuid';
+import { useCredits } from '@/contexts/credits-context'
 
 const supabase = createClient()
 
@@ -41,6 +42,7 @@ export default function TopicFinder() {
   const [user, setUser] = useState<any>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
+  const { credits, updateCredits } = useCredits()
 
   useEffect(() => {
     fetchToolConfig()
@@ -210,7 +212,7 @@ export default function TopicFinder() {
     if (user) {
       const { data, error } = await supabase
         .from('users')
-        .update({ credits: userCredits! - amount })
+        .update({ credits: credits! - amount })
         .eq('user_id', user.id)
         .select('credits')
         .single()
@@ -218,7 +220,7 @@ export default function TopicFinder() {
       if (error) {
         console.error('Error deducting credits:', error)
       } else {
-        setUserCredits(data.credits)
+        updateCredits(data.credits)
       }
     }
   }
@@ -234,7 +236,7 @@ export default function TopicFinder() {
       return
     }
 
-    if (userCredits === null) {
+    if (credits === null) {
       toast({
         title: "Error",
         description: "Unable to fetch your credits. Please try again later.",
@@ -252,10 +254,10 @@ export default function TopicFinder() {
       return
     }
 
-    if (userCredits < toolConfig.credit_cost) {
+    if (credits < toolConfig.credit_cost) {
       toast({
         title: "Insufficient Credits",
-        description: `You need ${toolConfig.credit_cost} credits to use this tool. You currently have ${userCredits} credits.`,
+        description: `You need ${toolConfig.credit_cost} credits to use this tool. You currently have ${credits} credits.`,
         variant: "destructive",
       })
       return

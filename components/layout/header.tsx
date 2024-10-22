@@ -16,8 +16,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Cpu, ChevronDown, User as UserIcon, Settings, LogOut, Shield, Bell, Trash2 } from "lucide-react";
+import { Cpu, ChevronDown, User as UserIcon, Settings, LogOut, Shield, Bell, Trash2, Coins } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
+import { useCredits } from "@/contexts/credits-context";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Notification {
   id: number;
@@ -38,6 +40,9 @@ export function Header() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [hiddenNotifications, setHiddenNotifications] = useState<number[]>([])
+
+  const { credits } = useCredits()
+  const [prevCredits, setPrevCredits] = useState<number | null>(null)
 
   useEffect(() => {
     const getUser = async () => {
@@ -104,6 +109,16 @@ export function Header() {
       supabase.removeChannel(notificationsSubscription);
     };
   }, [user]);
+
+  useEffect(() => {
+    if (credits !== null && prevCredits !== null && credits !== prevCredits) {
+      // Credits have changed, trigger animation
+      setPrevCredits(credits)
+    } else if (credits !== null && prevCredits === null) {
+      // Initial credits set
+      setPrevCredits(credits)
+    }
+  }, [credits, prevCredits])
 
   const markAsRead = async (id: number) => {
     const { error } = await supabase
@@ -322,6 +337,21 @@ export function Header() {
               </DropdownMenu>
             </>
           )}
+          {/* Credits display */}
+          <div className="flex items-center space-x-2 bg-gray-800 rounded-full px-3 py-1">
+            <Coins className="h-4 w-4 text-yellow-500" />
+            <AnimatePresence>
+              <motion.span
+                key={credits}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="font-medium text-yellow-500"
+              >
+                {credits}
+              </motion.span>
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </header>

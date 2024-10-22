@@ -20,82 +20,248 @@ interface SavedTopic {
   generation_id: string;
 }
 
+interface SavedStrategy {
+  id: string;
+  primary_keyword: string;
+  language: string;
+  keyword_count: number;
+  strategy: {
+    cluster: string;
+    keyword: string;
+    intent: string;
+    title: string;
+    metaDescription: string;
+  }[];
+  created_at: string;
+  tool: string;
+  generation_id: string;
+}
+
+type SavedContent = SavedTopic | SavedStrategy;
+
 export function ContentLibrary() {
-  const [savedTopics, setSavedTopics] = useState<SavedTopic[]>([])
+  const [savedContent, setSavedContent] = useState<SavedContent[]>([])
   const [searchTerm, setSearchTerm] = useState('')
-  const [filter, setFilter] = useState('all')
+  const [selectedTool, setSelectedTool] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState('date')
 
   useEffect(() => {
-    fetchSavedTopics()
+    fetchSavedContent()
   }, [])
 
-  const fetchSavedTopics = async () => {
+  const fetchSavedContent = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      const { data, error } = await supabase
+      const { data: topicsData, error: topicsError } = await supabase
         .from('saved_topics')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
-      if (error) {
-        console.error('Error fetching saved topics:', error)
-      } else {
-        setSavedTopics(data || [])
+      const { data: strategiesData, error: strategiesError } = await supabase
+        .from('saved_strategies')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (topicsError) {
+        console.error('Error fetching saved topics:', topicsError)
       }
+      if (strategiesError) {
+        console.error('Error fetching saved strategies:', strategiesError)
+      }
+
+      const allContent = [
+        ...(topicsData || []).map(topic => ({ ...topic, tool: 'Topic Finder' })),
+        ...(strategiesData || []).map(strategy => ({ ...strategy, tool: 'Strategy Builder' }))
+      ]
+
+      setSavedContent(allContent)
     }
   }
 
-  const handleDelete = async (generationId: string) => {
+  const handleDelete = async (generationId: string, tool: string) => {
+    const tableName = tool === 'Topic Finder' ? 'saved_topics' : 'saved_strategies'
     const { error } = await supabase
-      .from('saved_topics')
+      .from(tableName)
       .delete()
       .eq('generation_id', generationId)
 
     if (error) {
-      console.error('Error deleting topics:', error)
+      console.error(`Error deleting ${tool} content:`, error)
     } else {
-      setSavedTopics(savedTopics.filter(topic => topic.generation_id !== generationId))
+      setSavedContent(savedContent.filter(content => content.generation_id !== generationId))
     }
   }
 
-  const filteredAndSortedTopics = savedTopics
-    .filter(topic => 
-      topic.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
-      (filter === 'all' || topic.tool === filter)
+  const filteredAndSortedContent = savedContent
+    .filter(content => 
+      (selectedTool ? content.tool === selectedTool : true) &&
+      (content.tool === 'Topic Finder' 
+        ? (content as SavedTopic).title.toLowerCase().includes(searchTerm.toLowerCase())
+        : (content as SavedStrategy).primary_keyword.toLowerCase().includes(searchTerm.toLowerCase())
+      )
     )
-    .sort((a, b) => {
-      if (sortBy === 'date') {
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      } else if (sortBy === 'tool') {
-        return a.tool.localeCompare(b.tool)
-      }
-      return 0
-    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-  const uniqueTools = Array.from(new Set(savedTopics.map(topic => topic.tool)))
-  const groupedTopics = filteredAndSortedTopics.reduce((acc, topic) => {
-    if (!acc[topic.generation_id]) {
-      acc[topic.generation_id] = []
+  const uniqueTools = Array.from(new Set(savedContent.map(content => content.tool)))
+
+  const handleDownload = (contents: SavedContent[]) => {
+    let csvContent: string;
+    if (contents[0].tool === 'Topic Finder') {
+      csvContent = (contents as SavedTopic[]).map((content) => 
+        `"${content.title}","${content.description}","${content.keywords.join(', ')}"`
+      ).join('\n')
+      csvContent = `Title,Description,Keywords\n${csvContent}`
+    } else {
+      const strategies = contents as SavedStrategy[]
+      csvContent = strategies.flatMap(strategy => 
+        strategy.strategy.map(item => 
+          `"${strategy.primary_keyword}","${item.cluster}","${item.keyword}","${item.intent}","${item.title}","${item.metaDescription}"`
+        )
+      ).join('\n')
+      csvContent = `Primary Keyword,Keyword Cluster,Keyword,Search Intent,Title,Meta Description\n${csvContent}`
     }
-    acc[topic.generation_id].push(topic)
-    return acc
-  }, {} as Record<string, SavedTopic[]>)
 
-  const handleDownload = (topics: SavedTopic[]) => {
-    const csvContent = topics.map(topic => 
-      `"${topic.title}","${topic.description}","${topic.keywords.join(', ')}"`
-    ).join('\n')
-
-    const blob = new Blob([`Title,Description,Keywords\n${csvContent}`], { type: 'text/csv;charset=utf-8;' })
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', `generated_topics_${topics[0].created_at.split('T')[0]}.csv`)
+    link.setAttribute('download', `${contents[0].tool}_${new Date().toISOString().split('T')[0]}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  const renderContentTable = (tool: string) => {
+    const toolContent = filteredAndSortedContent.filter(content => content.tool === tool)
+    const groupedContent = toolContent.reduce((acc, content) => {
+      if (!acc[content.generation_id]) {
+        acc[content.generation_id] = []
+      }
+      acc[content.generation_id].push(content)
+      return acc
+    }, {} as Record<string, SavedContent[]>)
+
+    if (tool === 'Topic Finder') {
+      return (
+        <table className="w-full">
+          <thead>
+            <tr className="text-left text-gray-400">
+              <th className="pb-2">Title</th>
+              <th className="pb-2">Description</th>
+              <th className="pb-2">Keywords</th>
+              <th className="pb-2">Date</th>
+              <th className="pb-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="text-gray-300">
+            {Object.entries(groupedContent).map(([generationId, contents]) => (
+              <React.Fragment key={generationId}>
+                <tr className="bg-gray-700">
+                  <td colSpan={5} className="py-2 px-4 font-semibold">
+                    Generation from {new Date(contents[0].created_at).toLocaleDateString()}
+                  </td>
+                </tr>
+                {(contents as SavedTopic[]).map((content, index) => (
+                  <tr key={content.id} className="hover:bg-gray-700 transition-colors">
+                    <td className="py-2">{content.title}</td>
+                    <td>{content.description}</td>
+                    <td>{content.keywords.join(', ')}</td>
+                    <td>{new Date(content.created_at).toLocaleDateString()}</td>
+                    {index === 0 && (
+                      <td rowSpan={contents.length}>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="hover:bg-purple-500 hover:text-white mr-2"
+                          onClick={() => handleDownload(contents)}
+                        >
+                          <Download className="h-4 w-4 mr-1" />
+                          Download
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="hover:bg-red-500 hover:text-white"
+                          onClick={() => handleDelete(generationId, content.tool)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Delete
+                        </Button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      )
+    } else if (tool === 'Strategy Builder') {
+      return (
+        <table className="w-full">
+          <thead>
+            <tr className="text-left text-gray-400">
+              <th className="pb-2">Primary Keyword</th>
+              <th className="pb-2">Keyword Cluster</th>
+              <th className="pb-2">Keyword</th>
+              <th className="pb-2">Search Intent</th>
+              <th className="pb-2">Title</th>
+              <th className="pb-2">Meta Description</th>
+              <th className="pb-2">Date</th>
+              <th className="pb-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="text-gray-300">
+            {Object.entries(groupedContent).map(([generationId, contents]) => (
+              <React.Fragment key={generationId}>
+                <tr className="bg-gray-700">
+                  <td colSpan={8} className="py-2 px-4 font-semibold">
+                    Generation from {new Date(contents[0].created_at).toLocaleDateString()}
+                  </td>
+                </tr>
+                {(contents as SavedStrategy[]).flatMap((content, contentIndex) => 
+                  content.strategy.map((item, index) => (
+                    <tr key={`${content.id}-${index}`} className="hover:bg-gray-700 transition-colors">
+                      <td className="py-2">{content.primary_keyword}</td>
+                      <td>{item.cluster}</td>
+                      <td>{item.keyword}</td>
+                      <td>{item.intent}</td>
+                      <td>{item.title}</td>
+                      <td>{item.metaDescription}</td>
+                      <td>{new Date(content.created_at).toLocaleDateString()}</td>
+                      {contentIndex === 0 && index === 0 && (
+                        <td rowSpan={contents.length * content.strategy.length}>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="hover:bg-purple-500 hover:text-white mr-2"
+                            onClick={() => handleDownload(contents)}
+                          >
+                            <Download className="h-4 w-4 mr-1" />
+                            Download
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="hover:bg-red-500 hover:text-white"
+                            onClick={() => handleDelete(generationId, content.tool)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Delete
+                          </Button>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
   }
 
   return (
@@ -112,76 +278,26 @@ export function ContentLibrary() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-[180px] bg-gray-700 text-gray-300 border-gray-600">
-              <SelectValue placeholder="Filter by tool" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Tools</SelectItem>
-              {uniqueTools.map(tool => (
-                <SelectItem key={tool} value={tool}>{tool}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[180px] bg-gray-700 text-gray-300 border-gray-600">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="date">Date</SelectItem>
-              <SelectItem value="tool">Tool</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <table className="w-full">
-          <thead>
-            <tr className="text-left text-gray-400">
-              <th className="pb-2">Title</th>
-              <th className="pb-2">Description</th>
-              <th className="pb-2">Keywords</th>
-              <th className="pb-2">Tool</th>
-              <th className="pb-2">Date</th>
-              <th className="pb-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="text-gray-300">
-            {Object.entries(groupedTopics).map(([generationId, topics]) => (
-              <React.Fragment key={generationId}>
-                <tr className="bg-gray-700">
-                  <td colSpan={6} className="py-2 px-4 font-semibold">
-                    Generation from {new Date(topics[0].created_at).toLocaleDateString()}
-                  </td>
-                </tr>
-                {topics.map((topic, index) => (
-                  <tr key={topic.id} className="hover:bg-gray-700 transition-colors">
-                    <td className="py-2">{topic.title}</td>
-                    <td>{topic.description}</td>
-                    <td>{topic.keywords.join(', ')}</td>
-                    <td>{topic.tool}</td>
-                    <td>{new Date(topic.created_at).toLocaleDateString()}</td>
-                    {index === 0 && (
-                      <td rowSpan={topics.length}>
-                        <Button variant="ghost" size="sm" className="hover:bg-purple-500 hover:text-white mr-2" onClick={() => handleDownload(topics)}>
-                          <Download className="h-4 w-4 mr-1" />
-                          Download
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="hover:bg-red-500 hover:text-white"
-                          onClick={() => handleDelete(generationId)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Delete
-                        </Button>
-                      </td>
-                    )}
-                  </tr>
+          <div className="flex items-center">
+            <span className="text-gray-300 mr-2">Choose Tool:</span>
+            <Select value={selectedTool || ''} onValueChange={setSelectedTool}>
+              <SelectTrigger className="w-[180px] bg-gray-700 text-gray-300 border-gray-600">
+                <SelectValue placeholder="Select tool" />
+              </SelectTrigger>
+              <SelectContent>
+                {uniqueTools.map(tool => (
+                  <SelectItem key={tool} value={tool}>{tool}</SelectItem>
                 ))}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        {selectedTool ? renderContentTable(selectedTool) : uniqueTools.map(tool => (
+          <div key={tool}>
+            <h3 className="text-xl font-bold text-gray-100 mt-8 mb-4">{tool}</h3>
+            {renderContentTable(tool)}
+          </div>
+        ))}
       </CardContent>
     </Card>
   );

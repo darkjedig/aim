@@ -137,41 +137,43 @@ export default function OwnerAdminDashboard() {
           <h1 className="text-3xl font-bold text-gray-100">Owner Admin Dashboard</h1>
         </div>
 
-        {activeForm ? (
-          <>
-            <Button
-              variant="ghost"
-              onClick={() => setActiveForm("")}
-              className="mb-4 text-gray-300 hover:text-white hover:bg-purple-500"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back
-            </Button>
-            {renderForm()}
-          </>
-        ) : (
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-            <TabsContent value="overview">
-              <Overview />
-            </TabsContent>
-            <TabsContent value="users">
-              <UserManagement />
-            </TabsContent>
-            <TabsContent value="subscriptions">
-              <SubscriptionsAndCredits 
-                onAddPlan={() => setActiveForm("add-plan")} 
-              />
-            </TabsContent>
-            <TabsContent value="tools">
-              <ToolConfiguration onAddTool={() => setActiveForm("add-tool")} />
-            </TabsContent>
-            <TabsContent value="notifications">
-              <Notifications />
-            </TabsContent>
-            <TabsContent value="settings">
-              <SystemSettings />
-            </TabsContent>
-          </Tabs>
-        )}
+        <div className="pb-24"> {/* Add padding at the bottom */}
+          {activeForm ? (
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => setActiveForm("")}
+                className="mb-4 text-gray-300 hover:text-white hover:bg-purple-500"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+              </Button>
+              {renderForm()}
+            </>
+          ) : (
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+              <TabsContent value="overview">
+                <Overview />
+              </TabsContent>
+              <TabsContent value="users">
+                <UserManagement />
+              </TabsContent>
+              <TabsContent value="subscriptions">
+                <SubscriptionsAndCredits 
+                  onAddPlan={() => setActiveForm("add-plan")} 
+                />
+              </TabsContent>
+              <TabsContent value="tools">
+                <ToolConfiguration onAddTool={() => setActiveForm("add-tool")} />
+              </TabsContent>
+              <TabsContent value="notifications">
+                <Notifications />
+              </TabsContent>
+              <TabsContent value="settings">
+                <SystemSettings />
+              </TabsContent>
+            </Tabs>
+          )}
+        </div>
       </main>
     </div>
   )

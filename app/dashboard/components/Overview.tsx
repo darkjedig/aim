@@ -141,27 +141,27 @@ export function Overview() {
           <div className="space-y-2">
             <div className="flex justify-between">
               <span className="font-medium">Email:</span>
-              <span>{user.email}</span>
+              <span>{user?.email}</span>
             </div>
             <div className="flex justify-between">
               <span className="font-medium">Account Created:</span>
-              <span>{new Date(user.created_at).toLocaleDateString()}</span>
+              <span>{user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</span>
             </div>
             <div className="flex justify-between">
               <span className="font-medium">Name:</span>
-              <span>{user.name}</span>
+              <span>{user?.name}</span>
             </div>
             <div className="flex justify-between">
               <span className="font-medium">Status:</span>
-              <span>{user.status}</span>
+              <span>{user?.status}</span>
             </div>
             <div className="flex justify-between">
               <span className="font-medium">Credits:</span>
-              <span>{user.credits}</span>
+              <span>{user?.credits}</span>
             </div>
             <div className="flex justify-between">
               <span className="font-medium">Subscription:</span>
-              <span>{user.subscription}</span>
+              <span>{user?.subscription}</span>
             </div>
           </div>
           <div className="mt-4 space-x-2">

@@ -3,20 +3,23 @@
 import { motion } from 'framer-motion'
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, FileDown, Loader2, PenTool, RefreshCw } from "lucide-react"
+import { Download, FileDown, Loader2, PenTool, RefreshCw, Save } from "lucide-react"
+
+interface Strategy {
+  cluster: string;
+  keyword: string;
+  intent: string;
+  title: string;
+  metaDescription: string;
+}
 
 interface StrategyResultsProps {
   isLoading: boolean;
-  strategy: Array<{
-    cluster: string;
-    keyword: string;
-    intent: string;
-    title: string;
-    metaDescription: string;
-  }>;
+  strategy: Strategy[];
+  onSave: () => void;
 }
 
-export function StrategyResults({ isLoading, strategy }: StrategyResultsProps) {
+export function StrategyResults({ isLoading, strategy, onSave }: StrategyResultsProps) {
   const handleWriteAboutThis = (title: string) => {
     console.log("Writing about:", title)
     // Implement navigation to blog writer page or open modal
@@ -44,6 +47,10 @@ export function StrategyResults({ isLoading, strategy }: StrategyResultsProps) {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold text-white">Generated SEO Strategy</h2>
         <div className="flex space-x-2">
+          <Button variant="outline" size="sm" className="flex items-center bg-gray-800 text-white border-purple-500 hover:bg-purple-500/20" onClick={onSave}>
+            <Save className="mr-2 h-4 w-4" />
+            Save Strategy
+          </Button>
           <Button variant="outline" size="sm" className="flex items-center bg-gray-800 text-white border-purple-500 hover:bg-purple-500/20">
             <FileDown className="mr-2 h-4 w-4" />
             Export CSV
